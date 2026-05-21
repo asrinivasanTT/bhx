@@ -1,0 +1,57 @@
+From 69bf56d8f06699f34b5e57aaf1a2b6725e94f015 Mon Sep 17 00:00:00 2001
+From: Oriol Catalan | OPENCHIP <oriol.catalan@openchip.com>
+Date: Tue, 19 May 2026 08:58:45 +0000
+Subject: [PATCH] lib: sbi: Make per-HART stack size configurable via Kconfig
+
+lib: sbi: Make per-HART stack size configurable via Kconfig
+
+The per-HART stack size for exception/interrupt handling is currently
+hardcoded to 8192 bytes in SBI_PLATFORM_DEFAULT_HART_STACK_SIZE. This
+may not be sufficient for platforms with deeper call stacks (e.g., those
+enabling additional SBI extensions) or may be wasteful for minimal
+platforms.
+
+Introduce a HART_STACK_SIZE Kconfig option in lib/sbi/Kconfig with a
+valid range of 8192 to 1048576 bytes and a default of 8192 bytes to
+preserve existing behavior. The SBI_PLATFORM_DEFAULT_HART_STACK_SIZE
+macro now resolves to CONFIG_HART_STACK_SIZE, allowing all platforms
+to benefit from a single configuration knob without any source changes.
+
+Signed-off-by: Oriol Catalan <oriol.catalan@openchip.com>
+---
+ include/sbi/sbi_platform.h | 2 +-
+ lib/sbi/Kconfig            | 5 +++++
+ 2 files changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/include/sbi/sbi_platform.h b/include/sbi/sbi_platform.h
+index c6d30080..43584433 100644
+--- a/include/sbi/sbi_platform.h
++++ b/include/sbi/sbi_platform.h
+@@ -152,7 +152,7 @@ struct sbi_platform_operations {
+ };
+ 
+ /** Platform default per-HART stack size for exception/interrupt handling */
+-#define SBI_PLATFORM_DEFAULT_HART_STACK_SIZE	8192
++#define SBI_PLATFORM_DEFAULT_HART_STACK_SIZE	CONFIG_HART_STACK_SIZE
+ 
+ /** Platform default heap size */
+ #define SBI_PLATFORM_DEFAULT_HEAP_SIZE(__num_hart)	\
+diff --git a/lib/sbi/Kconfig b/lib/sbi/Kconfig
+index c6cc04bc..b307cee1 100644
+--- a/lib/sbi/Kconfig
++++ b/lib/sbi/Kconfig
+@@ -2,6 +2,11 @@
+ 
+ menu "Generic SBI Support"
+ 
++config HART_STACK_SIZE
++       int "Per-HART stack size (bytes)"
++       range 8192 1048576
++       default 8192
++
+ config CONSOLE_EARLY_BUFFER_SIZE
+ 	int "Early console buffer size (bytes)"
+ 	default 256
+-- 
+2.34.1
+

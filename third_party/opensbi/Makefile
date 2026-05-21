@@ -50,6 +50,10 @@ FW_JUMP := $(SB_SRCDIR)/build/platform/generic/firmware/fw_jump.bin
 # to know the OpenSBI version directory name.
 FW_JUMP_LINK := $(TOPDIR)/fw_jump.bin
 
+# Path to the Kconfiglib-generated .config inside the OpenSBI build tree.
+# PLATFORM=generic -> build/platform/generic/kconfig/.config
+SBI_KCONFIG := $(SB_SRCDIR)/build/platform/generic/kconfig/.config
+
 # Cross-compiler. Same toolchain as third_party/uboot/. The Debian
 # package gcc-riscv64-linux-gnu provides this as `riscv64-linux-gnu-`.
 CROSS_COMPILE ?= riscv64-linux-gnu-
@@ -109,10 +113,30 @@ $(DL_DIR)/$(OPENSBI_TARBALL):
 	wget -q -O $@.tmp $(OPENSBI_URL)
 	@mv $@.tmp $@
 
+# Build in three steps so Kconfig overrides are applied before compilation:
+#   1. Sub-make targeting only $(SBI_KCONFIG) runs defconfig.py to produce
+#      the initial .config from platform/generic/configs/defconfig.
+#   2. setconfig.py patches HART_STACK_SIZE in the .config in-place.
+#      Its updated mtime causes genconfig.py to re-emit autoconf.h in step 3.
+#   3. Full sub-make compiles everything against the patched config.
 $(FW_JUMP): $(SB_SRCDIR)/Makefile
+	$(MAKE) -C $(SB_SRCDIR) CROSS_COMPILE=$(CROSS_COMPILE) $(SBI_FLAGS) $(SBI_KCONFIG)
+	OPENSBI_SRC_DIR=$(SB_SRCDIR) \
+		OPENSBI_PLATFORM=generic \
+		OPENSBI_PLATFORM_SRC_DIR=$(SB_SRCDIR)/platform/generic \
+		KCONFIG_CONFIG=$(SBI_KCONFIG) \
+		python3 $(SB_SRCDIR)/scripts/Kconfiglib/setconfig.py \
+			--kconfig $(SB_SRCDIR)/Kconfig HART_STACK_SIZE=16384
 	$(MAKE) -C $(SB_SRCDIR) CROSS_COMPILE=$(CROSS_COMPILE) $(SBI_FLAGS)
 
 rebuild:
+	$(MAKE) -C $(SB_SRCDIR) CROSS_COMPILE=$(CROSS_COMPILE) $(SBI_FLAGS) $(SBI_KCONFIG)
+	OPENSBI_SRC_DIR=$(SB_SRCDIR) \
+		OPENSBI_PLATFORM=generic \
+		OPENSBI_PLATFORM_SRC_DIR=$(SB_SRCDIR)/platform/generic \
+		KCONFIG_CONFIG=$(SBI_KCONFIG) \
+		python3 $(SB_SRCDIR)/scripts/Kconfiglib/setconfig.py \
+			--kconfig $(SB_SRCDIR)/Kconfig HART_STACK_SIZE=16384
 	$(MAKE) -C $(SB_SRCDIR) CROSS_COMPILE=$(CROSS_COMPILE) $(SBI_FLAGS)
 	ln -sfr $(FW_JUMP) $(FW_JUMP_LINK)
 
